@@ -1,35 +1,31 @@
 package adalexer;
 
 import java.io.*;
-import java.nio.file.*;
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * Главный класс программы.
  * Выполняет:
  * 1. Задание 1: Подсчёт общего числа лексем
  * 2. Задание 2: Подсчёт частоты (абсолютной и относительной) лексем каждого типа
- *
- * Задание 3 (перечень идентификаторов с расположением) не реализовано по требованию.
  */
 public class Main {
 
     public static void main(String[] args) {
         // Проверка аргументов командной строки
         if (args.length == 0) {
-            System.err.println("Использование: java -jar ada-lexer.jar <файл1> [файл2 ...]");
-            System.err.println("Пример: java -jar ada-lexer.jar program.ada");
+            System.err.println("Использование: java adalexer.Main <файл1> [файл2 ...]");
+            System.err.println("Пример: java adalexer.Main program.ada");
             System.exit(1);
         }
 
         // Собираем все переданные файлы
         List<String> filenames = Arrays.asList(args);
 
-        // Результирующая статистика
+        // Результирующая статистика (только для правильных файлов)
         int totalTokens = 0;
         Map<TokenType, Integer> typeFrequency = new HashMap<>();
-        List<LexerException> errors = new ArrayList<>();
+        List<String> errorFiles = new ArrayList<>();  // Список файлов с ошибками
 
         System.out.println("=".repeat(70));
         System.out.println("ЛЕКСИЧЕСКИЙ АНАЛИЗАТОР ДЛЯ ЯЗЫКА ADA");
@@ -48,28 +44,29 @@ public class Main {
 
                 // Вывод всех токенов (для отладки)
                 System.out.println("Токены:");
+                int tokenCount = 0;
                 for (Token token : tokens) {
                     if (token.getType() != TokenType.EOF) {
                         System.out.println("  " + token.toShortString());
+                        tokenCount++;
                     }
                 }
+                System.out.println("  (Всего токенов: " + tokenCount + ")");
                 System.out.println();
 
-                // Подсчёт статистики
+                // Подсчёт статистики по файлу
                 int fileTokens = 0;
                 Map<TokenType, Integer> fileFreq = new HashMap<>();
 
                 for (Token token : tokens) {
                     if (token.getType() == TokenType.EOF) continue;
-
                     fileTokens++;
                     fileFreq.put(token.getType(),
                             fileFreq.getOrDefault(token.getType(), 0) + 1);
                 }
 
+                // Добавляем в общую статистику
                 totalTokens += fileTokens;
-
-                // Слияние с общей статистикой
                 for (Map.Entry<TokenType, Integer> entry : fileFreq.entrySet()) {
                     typeFrequency.put(entry.getKey(),
                             typeFrequency.getOrDefault(entry.getKey(), 0) + entry.getValue());
@@ -92,20 +89,32 @@ public class Main {
                 System.out.println();
 
             } catch (IOException e) {
-                System.err.println("Ошибка ввода-вывода при чтении файла '" + filename + "': " + e.getMessage());
+                System.err.println("  Ошибка ввода-вывода при чтении файла: " + e.getMessage());
+                errorFiles.add(filename);
             } catch (LexerException e) {
-                System.err.println(e);
-                errors.add(e);
+                // Лексическая ошибка - файл пропускается, не добавляется в статистику
+                System.err.println("  " + e);
+                errorFiles.add(filename);
+                System.out.println("  ВНИМАНИЕ: Файл содержит лексическую ошибку. Статистика по этому файлу НЕ учитывается.");
+                System.out.println();
             }
-
             System.out.println();
         }
 
-        // ===== ВЫВОД ИТОГОВОЙ СТАТИСТИКИ ПО ВСЕМ ФАЙЛАМ =====
+        // ===== ВЫВОД ИТОГОВОЙ СТАТИСТИКИ (ТОЛЬКО ПО КОРРЕКТНЫМ ФАЙЛАМ) =====
         System.out.println("=".repeat(70));
         System.out.println("ИТОГОВАЯ СТАТИСТИКА ПО ВСЕМ ФАЙЛАМ");
         System.out.println("=".repeat(70));
         System.out.println();
+
+        // Если были файлы с ошибками - сообщаем, какие пропущены
+        if (!errorFiles.isEmpty()) {
+            System.out.println("ВНИМАНИЕ: Следующие файлы содержат лексические ошибки и НЕ учтены в статистике:");
+            for (String errFile : errorFiles) {
+                System.out.println("    - " + errFile);
+            }
+            System.out.println();
+        }
 
         System.out.println("Задание 1: Общее число лексем");
         System.out.println("  " + totalTokens);
@@ -116,7 +125,7 @@ public class Main {
         System.out.println();
 
         // Сортируем типы по имени
-        if (!typeFrequency.isEmpty()) {
+        if (!typeFrequency.isEmpty() && totalTokens > 0) {
             List<TokenType> sortedAllTypes = new ArrayList<>(typeFrequency.keySet());
             sortedAllTypes.sort(Comparator.comparing(Enum::name));
 
@@ -132,22 +141,10 @@ public class Main {
 
             System.out.println("  +-------------------------+----------+----------+");
         } else {
-            System.out.println("  (нет лексем для анализа)");
+            System.out.println("  (нет корректных лексем для анализа)");
         }
 
         System.out.println();
-
-        // Вывод информации об ошибках
-        if (!errors.isEmpty()) {
-            System.out.println("=".repeat(70));
-            System.out.println("ЛЕКСИЧЕСКИЕ ОШИБКИ");
-            System.out.println("=".repeat(70));
-            for (LexerException e : errors) {
-                System.out.println("  " + e);
-            }
-            System.out.println();
-        }
-
         System.out.println("Анализ завершён.");
     }
 }
